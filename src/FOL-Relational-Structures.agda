@@ -1,38 +1,42 @@
 module FOL-Relational-Structures where
 
 open import Data.Nat using () renaming (ℕ to Nat)
+open import Data.Fin using (Fin; _≟_)
 open import Data.Vec using (Vec; map)
 open import Data.Bool using (Bool; true; false; _∧_) renaming (not to ¬_)
+open import Data.Sum using (_⊎_; inj₁; inj₂)
+open import Relation.Nullary using (yes; no)
 
-infix 10 not_
+infix 10  not_
 infix 9 _and_
-infix 8 _or_ _∈_
+infix 8  _or_
+infix 7  _impl_
+
+Consts = {n : Nat} -> Fin n
+Rels   = {m : Nat} -> Fin m
+Signature = Consts ⊎ Rels
+postulate
+  ar : Rels -> Nat
+
+Dom = {n : Nat} -> Fin n
+
+img : Signature -> Set
+img (inj₁ c) = Dom
+img (inj₂ r) = Vec Dom (ar r)
 
 postulate
-  Dom   : Nat -> Set
-  _≟ᵈ_   : (a : Dom 0) -> (b : Dom 0) -> Bool
-  Pred  : Nat -> Set
-  _∈_   : ∀ {n} -> Vec (Dom 0) n -> Dom n ->  Bool  
-  Const : Set
-  Name  : Set
-  _≟ⁿ_  : Name -> Name -> Bool
+  _ˢ : (s : Signature) -> img s
 
-data Σ : Set where
-  left : Const -> Σ
-  right : ∀ {n} -> Pred n -> Σ
-
-img : Σ -> Set
-img (left _)      = Dom 0
-img (right {n} _) = Dom n
+Name = Nat
 
 data T : Set where
-  C : Const -> T
-  V : Name -> T
+  C : Consts -> T
+  V : Name   -> T
 
 data F  : Set where
   _and_ : F -> F -> F
   not_  : F -> F
-  rel   : ∀ {n} -> Pred n -> Vec T n -> F
+  rel   :(r : Rels) -> Vec T (ar r) -> F
   _eq_  : T -> T -> F
   exist : Name -> F -> F
 
@@ -45,18 +49,20 @@ _impl_ : F -> F -> F
 universal : Name -> F -> F
 universal n φ = not (exist n (not φ))
 
-_[_/_] : (Name -> Dom 0) -> Dom 0 -> Name -> (Name -> Dom 0)
-(α [ d / x ]) n with n ≟ⁿ x
-(α [ d / x ]) n | false = α n
-(α [ d / x ]) n | true  = d
+_[_/_] : (Name -> Dom) -> Dom -> Name -> (Name -> Dom)
+(α [ d / x ]) n = {!!}
 
-evalT : (Name -> Dom 0) -> ((σ : Σ) -> img σ) -> (τ : T) -> Dom 0
-evalT α _ˢ (C c) = left c ˢ
+
+evalT : (Name -> Dom) -> ((σ : Signature) -> img σ) -> (τ : T) -> Dom
+evalT α _ˢ (C c) = inj₁ c ˢ
 evalT α _ˢ (V x) = α x
 
-evalF : (Name -> Dom 0) -> ((σ : Σ) -> img σ) -> (φ : F) -> Bool
+evalF : (Name -> Dom) -> ((σ : Signature) -> img σ) -> (φ : F) -> Bool
 evalF α _ˢ (φ and φ₁)  = evalF α _ˢ φ ∧ evalF α _ˢ φ₁
 evalF α _ˢ (not φ)     = ¬ evalF α _ˢ φ
-evalF α _ˢ (rel p v)   = map (evalT α _ˢ) v ∈ right p ˢ
-evalF α _ˢ (x eq x₁)   = evalT α _ˢ x ≟ᵈ evalT α _ˢ x₁
+evalF α _ˢ (rel p v)   = {!!}
+evalF α _ˢ (x eq x₁)   with  evalT α _ˢ x ≟ evalT α _ˢ x₁
+evalF α _ˢ (x eq x₁) | yes _ = true
+evalF α _ˢ (x eq x₁) | no  _ = false
 evalF α _ˢ (exist x φ) = evalF (α [ {!!} / x ]) _ˢ φ
+
