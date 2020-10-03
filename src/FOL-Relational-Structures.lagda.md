@@ -17,7 +17,7 @@ We want to work in a context where we have a finite set of constant
 symbols, a finite set of relation symbols and a function that gives an
 arity to each of these relation symbols. In order to do so, we work in
 a module parametrized by the cardinal of the set of constants, the
-cardinal of the set of relations and the function that assign an arity
+cardinal of the set of relations and the function that assigns an arity
 to the relation symbols.
 
 ```
@@ -97,7 +97,7 @@ symbols.
 
 We define a structure by a natural, the one that denotes the last
 element of the domain if we give a number to each one of them, and
-the function ˢ that interpret the symbols in the domain.
+the function ˢ that interprets the symbols in the domain.
 
 ```
   record Structure : Set where
@@ -119,7 +119,7 @@ existential formulas.
 
 Then, we define substitution in the assignation function. An
 assignation function maps names to elements of the
-domain. Substitution add one name and one element of the domain to a
+domain. Substitution adds one name and one element of the domain to a
 previous mapping. This again is used in the evaluation of the
 existential formulas.
 
@@ -133,7 +133,7 @@ existential formulas.
 
 We will need to check whether a tuple of elements is in a list of
 tuple. We give oursalves some trivial postulate about tuple decidable
-equality and ordering relation that should disapear once we find our
+equality and ordering relation that should disapear once I find my
 way in agda standard library.
 
 ```
@@ -147,7 +147,7 @@ way in agda standard library.
   v ∈? (x ∷ l) | no  _ = v ∈? l
 ```
 
-And we will also need to build the list of al the elements of the
+And we will also need to build the list of all the elements of the
 domain of a structure.
 
 ```
@@ -158,13 +158,13 @@ domain of a structure.
   toList {m} zero p acc    = fromℕ< p ∷ acc 
   toList {m} (suc n) p acc = toList n (pred< p) (fromℕ< p ∷ acc)
 
---  postulate
-  n<sn : (n : Nat) -> n < suc n
-  n<sn zero    = _≤_.s≤s _≤_.z≤n
-  n<sn (suc n) = _≤_.s≤s (n<sn n)
-
   getDom : (s : Structure) -> List (Fin (card s))
   getDom s = toList {card s} (dom s) (n<sn (dom s)) []
+    where
+      n<sn : (n : Nat) -> n < suc n
+      n<sn zero    = _≤_.s≤s _≤_.z≤n
+      n<sn (suc n) = _≤_.s≤s (n<sn n)
+
 ```
 
 Now we have all we need to express the evaluation function, first for
