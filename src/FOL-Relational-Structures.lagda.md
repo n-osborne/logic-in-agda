@@ -1,16 +1,16 @@
+# First Order Logic with equality for relational structures
+
 ```
 module FOL-Relational-Structures where
 
-open import Data.Nat         using (zero; suc; _<_; _≤_; _∸_) renaming (ℕ to Nat; _≟_ to _≟ⁿ_)
-open import Data.Fin         using (Fin; toℕ; fromℕ<; fromℕ) renaming (_≟_ to _≟ᶠ_; zero to zeroᶠ; suc to sucᶠ)
+open import Data.Nat         using (zero; suc; _<_; _≤_) renaming (ℕ to Nat; _≟_ to _≟ⁿ_)
+open import Data.Fin         using (Fin; fromℕ<) renaming (_≟_ to _≟ᶠ_)
 open import Data.List        using (List; []; _∷_; foldr)
---open import Data.List.Membership.DecSetoid
 open import Data.Vec         using (Vec; map)
 open import Data.Bool        using (Bool; true; false; _∧_; _∨_) renaming (not to ¬_)
 open import Data.Sum         using (_⊎_; inj₁; inj₂)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality
---open import Data.Vec.Relation.Binary.Equality.DecSetoid
 ```
 
 We want to work in a context where we have a finite set of constant
@@ -33,21 +33,21 @@ We then define some priority levels for the FOL.
   infix 7  _impl_
 ```
 
+## Signature
+
 Now we define the sets of constant and relation symbols as finite set
-of the given cardinality.
+of the given cardinality. A Signature is the union of these two finite
+sets.
 
 ```
-  Consts = Fin consts
-  Rels   = Fin rels
-```
-
-A Signature is the union of these to finite sets.
-
-```
+  Consts    = Fin consts
+  Rels      = Fin rels
   Signature = Consts ⊎ Rels
 ```
 
-We give ourselves an infinite set of names for the variables.
+## Syntax
+
+We also give ourselves an infinite set of names for the variables.
 
 ```
   Name = Nat
@@ -81,6 +81,8 @@ Disjunction, implication and universal quantification are derived forms.
   universal : Name -> F -> F
   universal n φ = not (exists n (not φ))
 ```
+
+## Semantic
 
 We can now turn to the definition of the semantic. We'll need to
 compute the type of the interpretation of the symbols in the Signature
@@ -129,8 +131,10 @@ existential formulas.
   ([ s ] α [ d / x ]) n | no  _ = α n
 ```
 
-We will need to chack whether a tuple of elements is in a list of
-tuple.
+We will need to check whether a tuple of elements is in a list of
+tuple. We give oursalves some trivial postulate about tuple decidable
+equality and ordering relation that should disapear once we find our
+way in agda standard library.
 
 ```
   postulate
@@ -154,8 +158,10 @@ domain of a structure.
   toList {m} zero p acc    = fromℕ< p ∷ acc 
   toList {m} (suc n) p acc = toList n (pred< p) (fromℕ< p ∷ acc)
 
-  postulate
-    n<sn : (n : Nat) -> n < suc n
+--  postulate
+  n<sn : (n : Nat) -> n < suc n
+  n<sn zero    = _≤_.s≤s _≤_.z≤n
+  n<sn (suc n) = _≤_.s≤s (n<sn n)
 
   getDom : (s : Structure) -> List (Fin (card s))
   getDom s = toList {card s} (dom s) (n<sn (dom s)) []
