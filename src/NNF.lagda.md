@@ -150,7 +150,7 @@ some other functions.
                       -> A × (Fin n -> Bool)
       dag-foldr-aux zero _ _ h acc _             = acc , h
       dag-foldr-aux (suc _) f g h acc []         = acc , h
-      dag-foldr-aux (suc gas) f g h acc (v ∷ vs) with dag-foldr' gas f g h acc v
+      dag-foldr-aux (suc gas) f g h acc (v ∷ vs) with dag-foldr' (suc gas) f g h acc v
       dag-foldr-aux (suc gas) f g h acc (v ∷ vs) | a , h' =
         dag-foldr-aux gas f g h' (g a acc) vs
         
