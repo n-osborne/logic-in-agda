@@ -40,6 +40,12 @@ procedure for that predicate.
   add f n x | yes _ = true
   add f n x | no  _ = f x
 
+  id : ∀ {A : Set} -> A -> A
+  id a = a
+
+  pass : ∀ {A B : Set} -> A -> B -> B
+  pass _ b = b
+
 open Utils
 ```
 
@@ -126,8 +132,41 @@ some other functions.
   next : Fin n -> List (Fin n)
   next v = map proj₁ (edges v)
 
+```
+
+We will want to fold a DAG. We define a fold that traverse the DAG
+depth first.
+
+Folding needs two functions to operate:
+
+  - f that takes a vertex and the accumulator and return a new accumulator
+    this function is called on each vertex.
+  - g that takes that takes two accumulators and return a new accumulator
+    this function is called and each adjacent of a vertex and correspond
+    to the depth-first search.
+
+Then, we'll need to keep track of the vertices that has been already
+visited. This is done by the function h.
+
+To define folding, we need to put in place a mutual recursion between
+the treatment of a vertex and the treatment of the list of the
+adjacent vertices of a vertex.
+
+```
+
   private
     mutual
+
+```
+
+The mutual recursion works as follow:
+
+  - dag-fold' check whether the vertex has already been visited, and
+    if not call dag-fold-aux with the list of adjacent vertices, an
+    updated function h and an updated accumulator.
+
+```
+
       dag-foldr' : ∀ {A : Set}
                   -> Nat
                   -> (Fin n -> A -> A)
@@ -139,6 +178,14 @@ some other functions.
       dag-foldr' zero f g h acc v      = acc , h
       dag-foldr' (suc gas) f g h acc v =
         if h v then acc , h else dag-foldr-aux gas f g (add h v) (f v acc) (next v)
+
+```
+
+  - dag-fold-aux call dag-fold' on each of the adjacent vertices,
+    keeping track of the already visited vertices and accumulator
+
+
+```
 
       dag-foldr-aux : ∀ {A : Set}       
                       -> Nat               
@@ -153,23 +200,60 @@ some other functions.
       dag-foldr-aux (suc gas) f g h acc (v ∷ vs) with dag-foldr' (suc gas) f g h acc v
       dag-foldr-aux (suc gas) f g h acc (v ∷ vs) | a , h' =
         dag-foldr-aux gas f g h' (g a acc) vs
-        
+
+```
+
+As the terminaison checker need some assurances that the mutual
+recursion eventually terminates, we add some gas to each of these
+functions to convince him. Then, we define dag-foldr as dag-foldr'
+with the number of vertices as gas and an empty set of visited
+vertices.
+    
+```
+
   dag-foldr : ∀ {A : Set} -> (Fin n -> A -> A) -> (A -> A -> A) -> A -> Fin n -> A
   dag-foldr f g a v = proj₁ (dag-foldr' n f g empty a v)
 
+```
+
+Then, depth-first search is defined as dag-foldr with the list
+constructor as f, concatenation as g and the empty list as
+accumulator.
+
+```
+
   dfs : Fin n -> List (Fin n)
   dfs v = dag-foldr _∷_ _++_ [] v
-  
-  size : Fin n -> Nat
-  size v = dag-foldr (λ v a -> suc a) _+_ zero v
 
-  private
-    height' : Nat -> Fin n -> Nat
-    height' zero _      = zero
-    height' (suc gas) v = foldr _⊔_ zero (map (λ x -> suc (height' gas x)) (next v))
-  
+```
+
+The size of a sentence is the number of edges and can be defined with
+the help of dag-foldr:
+
+  - when we encounter a vertex, we pass
+
+  - when we look at an adjacent vertex, we take the successor of the
+    result and add 1
+
+```
+
+  size : Fin n -> Nat
+  size v = dag-foldr pass (λ a acc -> suc a + acc) zero v
+
+```
+
+The height of a sentence is the length of the longest path to a leaf.
+
+  - as in the size function, when we encounter a vertex we pass
+
+  - when we look at an adjacent vertex, we add one to the result and
+    take the max between that and the accumulator
+    
+```
+
   height : Fin n -> Nat
-  height = height' n
+  height v = dag-foldr pass (λ a acc -> (suc a) ⊔ acc) zero v
+
      
 
 
