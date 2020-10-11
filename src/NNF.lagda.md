@@ -92,17 +92,19 @@ labelTy (_ ∷ _) = Connective
 
 ```
 
-We can now define a sentence as a record parametrized by n: Nat, the
-number of vertices. Each vertex is given a number (Fin n).
+We now define a NNF sentence as a record. 
 
 ```
 
-record Sentence (n : Nat) : Set where
+record NNF : Set where
 
 ```
 
-The record contains two fields:
+The record contains three fields:
 
+  - n : Nat the number of vertices in the DAG, each vertex is then
+    represented by a Fin n
+    
   - a function `edges` that, given a vertex, compute the list of
     adjacents, an adjacent vertex being represented by a dependent sum
     of its number and the proof that it is greater than the first
@@ -112,10 +114,10 @@ The record contains two fields:
     right type (accordingly to the fact that it is an internal vertex
     or a leaf.
 
-
 ```
 
   field
+    n     : Nat
     edges : (v : Fin n) -> List (∃[ x ] (v < x))
     label : (v : Fin n) -> labelTy (edges v)
 
@@ -257,7 +259,7 @@ The height of a sentence is the length of the longest path to a leaf.
      
 
 
-open Sentence
+open NNF
 ```
 
 
