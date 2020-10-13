@@ -3,17 +3,23 @@
 ```
 module NNF where
 
-open import Data.Nat         using (zero; suc; _⊔_; _+_) renaming (ℕ to Nat)
-open import Data.Fin         using (Fin; _<_; _≟_) renaming (toℕ to toNat)
-open import Data.List        using (List; []; _∷_; _++_; map; foldr)
+open import Data.Empty using (⊥)
+open import Data.Unit  using (⊤)
+open import Data.Nat         using (zero; suc; _⊔_; _+_; _≤_) renaming (ℕ to Nat; _<_ to _<ᴺ_)
+open import Data.Nat.Properties using (_<?_; _≤?_)
+open import Data.Fin         using (Fin; _≟_) renaming (toℕ to toNat; zero to zeroᶠ; fromℕ< to fromNat<; _<_ to _<ᶠ_)
+open import Data.List        using (List; []; _∷_; _++_; map)
 open import Data.Bool        using (Bool; true; false)
 open import Data.Product     using (_×_; _,_; ∃-syntax; proj₁)
-open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary  using (Decidable)
+open import Relation.Nullary.Decidable using (map′)
 open import Data.List.Relation.Unary.Any          using (Any; any)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
-
-
+open import Data.List.Relation.Unary.All using (All)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; setoid)
+open import Data.List.Relation.Unary.Unique.Setoid (setoid Nat) using (Unique)
+open import Data.List.Relation.Binary.Disjoint.Setoid (setoid Nat) using (Disjoint)
+open import Data.List.Membership.Setoid (setoid Nat) using (_∈_)
 module Utils where
 ```
 
@@ -22,11 +28,18 @@ procedure for that predicate.
 
 ```
 
-  _∈_ : ∀ {n} -> Fin n -> List (Fin n) -> Set _
-  v ∈ vs = Any (λ x -> v ≡ x) vs
+  _not-in_ : List Nat -> List (List Nat) -> Set
+  l not-in ls = All (Disjoint l) ls
 
-  _∈?_ : ∀ {n} -> Decidable (_∈_ {n})
-  v ∈? vs = any (λ x -> v ≟ x) vs
+  data Independant : List (List Nat) -> Set where
+    ind-[] : Independant []
+    ind-:: : ∀ {l ls} -> Independant ls -> l not-in ls -> Independant (l ∷ ls)
+    
+--  _∈_ : ∀ {n} -> Fin n -> List (Fin n) -> Set _
+--  v ∈ vs = Any (λ x -> v ≡ x) vs
+--
+--  _∈?_ : ∀ {n} -> Decidable (_∈_ {n})
+--  v ∈? vs = any (λ x -> v ≟ x) vs
 
   if_then_else_ : ∀ {A : Set} -> Bool -> A -> A -> A
   if false then _ else a₁ = a₁
@@ -39,9 +52,6 @@ procedure for that predicate.
   add f n x with n ≟ x
   add f n x | yes _ = true
   add f n x | no  _ = f x
-
-  id : ∀ {A : Set} -> A -> A
-  id a = a
 
   pass : ∀ {A B : Set} -> A -> B -> B
   pass _ b = b
@@ -90,6 +100,13 @@ labelTy : ∀ {A : Set} -> List A -> Set
 labelTy []      = Atom
 labelTy (_ ∷ _) = Connective
 
+isConn : {A : Set}{c : List A} -> labelTy c -> Set
+isConn {a} {[]} d = ⊥
+isConn {a} {x ∷ c} d = ⊤
+
+  
+
+
 ```
 
 We now define a NNF sentence as a record. 
@@ -118,7 +135,7 @@ The record contains three fields:
 
   field
     n     : Nat
-    edges : (v : Fin n) -> List (∃[ x ] (v < x))
+    edges : (v : Fin n) -> List (∃[ x ] (v <ᶠ x))
     label : (v : Fin n) -> labelTy (edges v)
 
 ```
@@ -133,6 +150,24 @@ some other functions.
 
   next : Fin n -> List (Fin n)
   next v = map proj₁ (edges v)
+
+  is-disjunction : (v : Fin n) -> Set
+  is-disjunction v = is-disjunction-aux (label v)
+    where
+      is-disjunction-aux : {A : Set}{c : List A} -> labelTy c -> Set
+      is-disjunction-aux {a} {[]} l = ⊥
+      is-disjunction-aux {a} {x ∷ c} and = ⊥
+      is-disjunction-aux {a} {x ∷ c} or = ⊤
+
+  is-conjunction : (v : Fin n) -> Set
+  is-conjunction v = is-conjunction-aux (label v)
+    where
+      is-conjunction-aux : {A : Set}{c : List A} -> labelTy c -> Set
+      is-conjunction-aux {a} {[]} l = ⊥
+      is-conjunction-aux {a} {x ∷ c} and = ⊤
+      is-conjunction-aux {a} {x ∷ c} or = ⊥
+
+  
 
 ```
 
@@ -242,6 +277,10 @@ the help of dag-foldr:
   size : Fin n -> Nat
   size v = dag-foldr pass (λ a acc -> suc a + acc) zero v
 
+  size-root : Nat
+  size-root with 0 <? n
+  ... | yes p = size (fromNat< p)
+  ... | no ¬p = zero
 ```
 
 The height of a sentence is the length of the longest path to a leaf.
@@ -256,10 +295,140 @@ The height of a sentence is the length of the longest path to a leaf.
   height : Fin n -> Nat
   height v = dag-foldr pass (λ a acc -> (suc a) ⊔ acc) zero v
 
-     
-
-
+  height-root : Nat
+  height-root with 0 <? n
+  ... | yes p  = height (fromNat< p)
+  ... | no  ¬p = zero
+  
 open NNF
+
+
+
+flatness : NNF -> Set
+flatness Σ = (height-root Σ) ≤ 2
+
+flat?' : (Σ : NNF) -> Dec (flatness Σ)
+flat?' Σ = height-root Σ ≤? 2
+
+simple-disjunction : NNF -> Set
+simple-disjunction Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> height Σ v ≡ 1 × Unique (map toNat (next Σ v))
+
+simple-conjunction : NNF -> Set
+simple-conjunction Σ = ∀ (v : Fin (n Σ)) -> is-conjunction Σ v -> height Σ v ≡ 1 × Unique (map toNat (next Σ v))
+
+
+record f-NNF : Set where
+  field
+    nnf   : NNF
+    f-nnf : flatness nnf
+open f-NNF
+
+record CNF : Set where
+  field
+    f-nnf : f-NNF
+    cnf   : simple-disjunction (nnf f-nnf)
+open CNF
+
+record DNF : Set where
+  field
+    f-nnf : f-NNF
+    dnf   : simple-conjunction (nnf f-nnf)
+open DNF
+
+decomposability : NNF -> Set
+decomposability Σ = ∀ (v : Fin (n Σ)) -> is-conjunction Σ v -> decomposable Σ v
+  where
+    decomposable : (Σ : NNF) -> Fin (n Σ) -> Set
+    decomposable Σ v = Independant (map (map toNat) (map (dfs Σ) (next Σ v)))
+
+determinism : NNF -> Set
+determinism Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> deterministic Σ v
+  where
+    deterministic : (Σ : NNF) -> Fin (n Σ) -> Set
+    deterministic Σ v = {!!} -- need a semantic !
+
+smoothness : NNF -> Set
+smoothness Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> smooth Σ v
+  where
+    smooth : (Σ : NNF) -> Fin (n Σ) -> Set
+    smooth Σ v = {!!}
+
+data Tree : (Σ : NNF) -> Fin (n Σ) ->  Set where
+  leave : (Σ : NNF)
+          -> (v : Fin (n Σ))
+          -> height Σ v ≡ 0
+          -----------------
+          -> Tree Σ v
+          
+  tree : (Σ : NNF)
+         -> (v : Fin (n Σ))
+         -> All (Tree Σ) (next Σ v)
+         -> Independant (map (map toNat) (map (dfs Σ) (next Σ v)))
+         ----------------------------------------------------------
+         -> Tree Σ v
+
+
+
+{--
+
+
+data Flatness (Σ : NNF) : Set where
+  flat : (height-root Σ) ≤ 2
+         ----------------------
+         -> Flatness Σ
+
+h≤2-flat : ∀ {Σ} -> (height-root Σ) ≤ 2 -> Flatness Σ
+h≤2-flat p = flat p
+
+flat-h≤2 : ∀ {Σ} -> Flatness Σ -> (height-root Σ) ≤ 2
+flat-h≤2 (flat p) = p
+
+flat-dec : ∀ {Σ} -> Dec ((height-root Σ) ≤ 2) -> Dec (Flatness Σ)
+flat-dec {Σ} h≤2 = map′ h≤2-flat (λ z → flat-h≤2 z) (height-root Σ ≤? 2)
+
+flat? : (Σ : NNF) -> Dec (Flatness Σ)
+flat? Σ = flat-dec ((height-root Σ) ≤? 2)
+
+-}
+
+{--
+data Simple-disjunction (Σ : NNF) : Set where
+  simple-disj : ∀ (v : Fin (n Σ))
+                -> is-disjunction Σ v
+                -> height Σ v ≡ 1
+                -> Unique (map toNat (next Σ v))
+                -----------------------
+                -> Simple-disjunction Σ
+
+record Simple-Disjunction (Σ : NNF) : Set where
+  field
+    prf : ∀ (v : Fin (n Σ))
+          -> is-disjunction Σ v
+          -> height Σ v ≡ 1 × Unique (map toNat (next Σ v))
+open Simple-Disjunction
+-}
+
+{--
+
+data Simple-conjunction (Σ : NNF) : Set where
+  simple-conj : ∀ (v : Fin (n Σ))
+                -> is-conjunction Σ v
+                -> height Σ v ≡ 1
+                -> Unique (map toNat (next Σ v))
+                -----------------------
+                -> Simple-conjunction Σ
+
+record Simple-Conjunction (Σ : NNF) : Set where
+  field
+    prf : ∀ (v : Fin (n Σ))
+          -> is-conjunction Σ v
+          -> height Σ v ≡ 1 × Unique (map toNat (next Σ v))
+open Simple-Conjunction
+
+
+
+-}
+
 ```
 
 
