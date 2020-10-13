@@ -17,7 +17,7 @@ infix 7  _impl_
 We give ourselves an infinite set of variable names
 
 ```
-Name   = Nat
+Name = Nat
 
 ```
 
