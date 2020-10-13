@@ -3,23 +3,26 @@
 ```
 module NNF where
 
+open import Data.Nat using (zero; suc; _⊔_; _+_; _≤_) renaming (ℕ to Nat; _<_ to _<ᴺ_)
+open import Data.Fin using (Fin; _≟_; toℕ; fromℕ<) renaming (zero to zeroᶠ; _<_ to _<ᶠ_)
+open import Data.Unit using (⊤)
+open import Data.Bool using (Bool; true; false)
+open import Data.List using (List; []; _∷_; _++_; map)
 open import Data.Empty using (⊥)
-open import Data.Unit  using (⊤)
-open import Data.Nat         using (zero; suc; _⊔_; _+_; _≤_) renaming (ℕ to Nat; _<_ to _<ᴺ_)
-open import Data.Nat.Properties using (_<?_; _≤?_)
-open import Data.Fin         using (Fin; _≟_) renaming (toℕ to toNat; zero to zeroᶠ; fromℕ< to fromNat<; _<_ to _<ᶠ_)
-open import Data.List        using (List; []; _∷_; _++_; map)
-open import Data.Bool        using (Bool; true; false)
-open import Data.Product     using (_×_; _,_; ∃-syntax; proj₁)
+open import Data.Product using (_×_; _,_; ∃-syntax; proj₁)
+open import Relation.Binary using (Decidable)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
-open import Relation.Binary  using (Decidable)
+open import Data.Nat.Properties using (_<?_; _≤?_)
 open import Relation.Nullary.Decidable using (map′)
-open import Data.List.Relation.Unary.Any          using (Any; any)
+open import Data.List.Relation.Unary.Any using (Any; any)
 open import Data.List.Relation.Unary.All using (All)
+open import Data.List.Relation.Unary.AllPairs using (AllPairs)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; setoid)
+open import Data.List.Membership.Setoid (setoid Nat) using (_∈_)
 open import Data.List.Relation.Unary.Unique.Setoid (setoid Nat) using (Unique)
 open import Data.List.Relation.Binary.Disjoint.Setoid (setoid Nat) using (Disjoint)
-open import Data.List.Membership.Setoid (setoid Nat) using (_∈_)
+
+
 module Utils where
 ```
 
@@ -34,7 +37,11 @@ procedure for that predicate.
   data Independant : List (List Nat) -> Set where
     ind-[] : Independant []
     ind-:: : ∀ {l ls} -> Independant ls -> l not-in ls -> Independant (l ∷ ls)
-    
+
+  same-vars : List Nat -> List Nat -> Set
+  same-vars l₀ l₁ = All (λ x -> x ∈ l₁) l₀ × All (λ x -> x ∈ l₀) l₁
+
+  
 --  _∈_ : ∀ {n} -> Fin n -> List (Fin n) -> Set _
 --  v ∈ vs = Any (λ x -> v ≡ x) vs
 --
@@ -279,7 +286,7 @@ the help of dag-foldr:
 
   size-root : Nat
   size-root with 0 <? n
-  ... | yes p = size (fromNat< p)
+  ... | yes p = size (fromℕ< p)
   ... | no ¬p = zero
 ```
 
@@ -297,7 +304,7 @@ The height of a sentence is the length of the longest path to a leaf.
 
   height-root : Nat
   height-root with 0 <? n
-  ... | yes p  = height (fromNat< p)
+  ... | yes p  = height (fromℕ< p)
   ... | no  ¬p = zero
   
 open NNF
@@ -311,10 +318,10 @@ flat?' : (Σ : NNF) -> Dec (flatness Σ)
 flat?' Σ = height-root Σ ≤? 2
 
 simple-disjunction : NNF -> Set
-simple-disjunction Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> height Σ v ≡ 1 × Unique (map toNat (next Σ v))
+simple-disjunction Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> height Σ v ≡ 1 × Unique (map toℕ (next Σ v))
 
 simple-conjunction : NNF -> Set
-simple-conjunction Σ = ∀ (v : Fin (n Σ)) -> is-conjunction Σ v -> height Σ v ≡ 1 × Unique (map toNat (next Σ v))
+simple-conjunction Σ = ∀ (v : Fin (n Σ)) -> is-conjunction Σ v -> height Σ v ≡ 1 × Unique (map toℕ (next Σ v))
 
 
 record f-NNF : Set where
@@ -339,7 +346,7 @@ decomposability : NNF -> Set
 decomposability Σ = ∀ (v : Fin (n Σ)) -> is-conjunction Σ v -> decomposable Σ v
   where
     decomposable : (Σ : NNF) -> Fin (n Σ) -> Set
-    decomposable Σ v = Independant (map (map toNat) (map (dfs Σ) (next Σ v)))
+    decomposable Σ v = Independant (map (map toℕ) (map (dfs Σ) (next Σ v)))
 
 determinism : NNF -> Set
 determinism Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> deterministic Σ v
@@ -351,7 +358,7 @@ smoothness : NNF -> Set
 smoothness Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> smooth Σ v
   where
     smooth : (Σ : NNF) -> Fin (n Σ) -> Set
-    smooth Σ v = {!!}
+    smooth Σ v = AllPairs same-vars (map (map toℕ) (map (dfs Σ) (next Σ v)))
 
 data Tree : (Σ : NNF) -> Fin (n Σ) ->  Set where
   leave : (Σ : NNF)
@@ -363,7 +370,7 @@ data Tree : (Σ : NNF) -> Fin (n Σ) ->  Set where
   tree : (Σ : NNF)
          -> (v : Fin (n Σ))
          -> All (Tree Σ) (next Σ v)
-         -> Independant (map (map toNat) (map (dfs Σ) (next Σ v)))
+         -> Independant (map (map toℕ) (map (dfs Σ) (next Σ v)))
          ----------------------------------------------------------
          -> Tree Σ v
 
@@ -396,7 +403,7 @@ data Simple-disjunction (Σ : NNF) : Set where
   simple-disj : ∀ (v : Fin (n Σ))
                 -> is-disjunction Σ v
                 -> height Σ v ≡ 1
-                -> Unique (map toNat (next Σ v))
+                -> Unique (map toℕ (next Σ v))
                 -----------------------
                 -> Simple-disjunction Σ
 
@@ -404,7 +411,7 @@ record Simple-Disjunction (Σ : NNF) : Set where
   field
     prf : ∀ (v : Fin (n Σ))
           -> is-disjunction Σ v
-          -> height Σ v ≡ 1 × Unique (map toNat (next Σ v))
+          -> height Σ v ≡ 1 × Unique (map toℕ (next Σ v))
 open Simple-Disjunction
 -}
 
@@ -414,7 +421,7 @@ data Simple-conjunction (Σ : NNF) : Set where
   simple-conj : ∀ (v : Fin (n Σ))
                 -> is-conjunction Σ v
                 -> height Σ v ≡ 1
-                -> Unique (map toNat (next Σ v))
+                -> Unique (map toℕ (next Σ v))
                 -----------------------
                 -> Simple-conjunction Σ
 
@@ -422,7 +429,7 @@ record Simple-Conjunction (Σ : NNF) : Set where
   field
     prf : ∀ (v : Fin (n Σ))
           -> is-conjunction Σ v
-          -> height Σ v ≡ 1 × Unique (map toNat (next Σ v))
+          -> height Σ v ≡ 1 × Unique (map toℕ (next Σ v))
 open Simple-Conjunction
 
 
