@@ -6,8 +6,8 @@ module NNF where
 open import Data.Nat using (zero; suc; _⊔_; _+_; _≤_) renaming (ℕ to Nat; _<_ to _<ᴺ_)
 open import Data.Fin using (Fin; _≟_; toℕ; fromℕ<) renaming (zero to zeroᶠ; _<_ to _<ᶠ_)
 open import Data.Unit using (⊤)
-open import Data.Bool using (Bool; true; false)
-open import Data.List using (List; []; _∷_; _++_; map)
+open import Data.Bool using (Bool; true; false) renaming (not to notᵇ)
+open import Data.List using (List; []; _∷_; _++_; map) renaming (and to f-and; or to f-or)
 open import Data.Empty using (⊥)
 open import Data.Product using (_×_; _,_; ∃-syntax; proj₁)
 open import Relation.Binary using (Decidable)
@@ -17,7 +17,7 @@ open import Relation.Nullary.Decidable using (map′)
 open import Data.List.Relation.Unary.Any using (Any; any)
 open import Data.List.Relation.Unary.All using (All)
 open import Data.List.Relation.Unary.AllPairs using (AllPairs)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; setoid)
+open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; setoid)
 open import Data.List.Membership.Setoid (setoid Nat) using (_∈_)
 open import Data.List.Relation.Unary.Unique.Setoid (setoid Nat) using (Unique)
 open import Data.List.Relation.Binary.Disjoint.Setoid (setoid Nat) using (Disjoint)
@@ -92,6 +92,14 @@ labelTy : ∀ {A : Set} -> List A -> Set
 labelTy []      = Atom
 labelTy (_ ∷ _) = Connective
 
+data LabelBox : Set where
+  at : Atom -> LabelBox
+  co : Connective -> LabelBox
+
+mkBox : ∀ {A}{l : List A} -> labelTy l -> LabelBox
+mkBox {A} {[]} lab = at lab
+mkBox {A} {x ∷ l} lab = co lab
+
 ```
 
 We now define a NNF sentence as a record. 
@@ -125,7 +133,7 @@ The record contains three fields:
 
 ```
 
-These two fields are enough to define a sentence in NNF. We then add
+These three fields are enough to define a sentence in NNF. We then add
 some other functions.
 
   - a function `next` that, given a vertex, computes the list of its
@@ -140,17 +148,17 @@ some other functions.
   is-disjunction v = is-disjunction-aux (label v)
     where
       is-disjunction-aux : {A : Set}{c : List A} -> labelTy c -> Set
-      is-disjunction-aux {a} {[]} l = ⊥
-      is-disjunction-aux {a} {x ∷ c} and = ⊥
-      is-disjunction-aux {a} {x ∷ c} or = ⊤
+      is-disjunction-aux {_} {[]} l = ⊥
+      is-disjunction-aux {_} {x ∷ _} and = ⊥
+      is-disjunction-aux {_} {x ∷ _} or = ⊤
 
   is-conjunction : (v : Fin n) -> Set
   is-conjunction v = is-conjunction-aux (label v)
     where
       is-conjunction-aux : {A : Set}{c : List A} -> labelTy c -> Set
-      is-conjunction-aux {a} {[]} l = ⊥
-      is-conjunction-aux {a} {x ∷ c} and = ⊤
-      is-conjunction-aux {a} {x ∷ c} or = ⊥
+      is-conjunction-aux {_} {[]} l = ⊥
+      is-conjunction-aux {_} {x ∷ _} and = ⊤
+      is-conjunction-aux {_} {x ∷ _} or = ⊥
 
 ```
 
@@ -285,8 +293,23 @@ The height of a sentence is the length of the longest path to a leaf.
   height-root with 0 <? n
   ... | yes p  = height (fromℕ< p)
   ... | no  ¬p = zero
+
+
   
 open NNF
+
+eval-sub-graph : Nat -> (Σ : NNF) -> (PS -> Bool) -> Fin (n Σ) -> Bool
+eval-sub-graph zero _ _ _ = false
+eval-sub-graph (suc gas) Σ α v with mkBox (label Σ v)
+... | at true    = true
+... | at false   = false
+... | at (var x) = α x
+... | at (not x) = notᵇ (α x)
+... | co and     = f-and (map (eval-sub-graph gas Σ α) (next Σ v))
+... | co or      = f-or (map (eval-sub-graph gas Σ α) (next Σ v))
+
+contradictory : (Σ : NNF) ->  Fin (n Σ) -> Fin (n Σ) -> Set
+contradictory Σ v₀ v₁ = ∀ {α : PS -> Bool} -> eval-sub-graph (height Σ v₀) Σ α v₀ ≢ eval-sub-graph (height Σ v₁) Σ α v₁
 
 flatness : NNF -> Set
 flatness Σ = (height-root Σ) ≤ 2
@@ -328,7 +351,7 @@ determinism : NNF -> Set
 determinism Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> deterministic Σ v
   where
     deterministic : (Σ : NNF) -> Fin (n Σ) -> Set
-    deterministic Σ v = {!!} -- need a semantic !
+    deterministic Σ v = AllPairs (contradictory Σ) (next Σ v) 
 
 smoothness : NNF -> Set
 smoothness Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> smooth Σ v
