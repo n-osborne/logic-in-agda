@@ -26,27 +26,12 @@ open import Data.List.Relation.Binary.Disjoint.Setoid (setoid Nat) using (Disjoi
 module Utils where
 ```
 
-We'll need membership predicate on List (Fin n) and a decision
-procedure for that predicate.
+We'll need some utility functions.
 
 ```
 
-  _not-in_ : List Nat -> List (List Nat) -> Set
-  l not-in ls = All (Disjoint l) ls
-
-  data Independant : List (List Nat) -> Set where
-    ind-[] : Independant []
-    ind-:: : ∀ {l ls} -> Independant ls -> l not-in ls -> Independant (l ∷ ls)
-
   same-vars : List Nat -> List Nat -> Set
   same-vars l₀ l₁ = All (λ x -> x ∈ l₁) l₀ × All (λ x -> x ∈ l₀) l₁
-
-  
---  _∈_ : ∀ {n} -> Fin n -> List (Fin n) -> Set _
---  v ∈ vs = Any (λ x -> v ≡ x) vs
---
---  _∈?_ : ∀ {n} -> Decidable (_∈_ {n})
---  v ∈? vs = any (λ x -> v ≟ x) vs
 
   if_then_else_ : ∀ {A : Set} -> Bool -> A -> A -> A
   if false then _ else a₁ = a₁
@@ -107,13 +92,6 @@ labelTy : ∀ {A : Set} -> List A -> Set
 labelTy []      = Atom
 labelTy (_ ∷ _) = Connective
 
-isConn : {A : Set}{c : List A} -> labelTy c -> Set
-isConn {a} {[]} d = ⊥
-isConn {a} {x ∷ c} d = ⊤
-
-  
-
-
 ```
 
 We now define a NNF sentence as a record. 
@@ -173,8 +151,6 @@ some other functions.
       is-conjunction-aux {a} {[]} l = ⊥
       is-conjunction-aux {a} {x ∷ c} and = ⊤
       is-conjunction-aux {a} {x ∷ c} or = ⊥
-
-  
 
 ```
 
@@ -269,6 +245,9 @@ accumulator.
   dfs : Fin n -> List (Fin n)
   dfs v = dag-foldr _∷_ _++_ [] v
 
+  dfs-next-toℕ : Fin n -> List (List Nat)
+  dfs-next-toℕ v = map (map toℕ) (map dfs (next v))
+  
 ```
 
 The size of a sentence is the number of edges and can be defined with
@@ -309,8 +288,6 @@ The height of a sentence is the length of the longest path to a leaf.
   
 open NNF
 
-
-
 flatness : NNF -> Set
 flatness Σ = (height-root Σ) ≤ 2
 
@@ -322,7 +299,6 @@ simple-disjunction Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> height Σ
 
 simple-conjunction : NNF -> Set
 simple-conjunction Σ = ∀ (v : Fin (n Σ)) -> is-conjunction Σ v -> height Σ v ≡ 1 × Unique (map toℕ (next Σ v))
-
 
 record f-NNF : Set where
   field
@@ -346,7 +322,7 @@ decomposability : NNF -> Set
 decomposability Σ = ∀ (v : Fin (n Σ)) -> is-conjunction Σ v -> decomposable Σ v
   where
     decomposable : (Σ : NNF) -> Fin (n Σ) -> Set
-    decomposable Σ v = Independant (map (map toℕ) (map (dfs Σ) (next Σ v)))
+    decomposable Σ v = AllPairs Disjoint (dfs-next-toℕ Σ v)
 
 determinism : NNF -> Set
 determinism Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> deterministic Σ v
@@ -358,85 +334,8 @@ smoothness : NNF -> Set
 smoothness Σ = ∀ (v : Fin (n Σ)) -> is-disjunction Σ v -> smooth Σ v
   where
     smooth : (Σ : NNF) -> Fin (n Σ) -> Set
-    smooth Σ v = AllPairs same-vars (map (map toℕ) (map (dfs Σ) (next Σ v)))
-
-data Tree : (Σ : NNF) -> Fin (n Σ) ->  Set where
-  leave : (Σ : NNF)
-          -> (v : Fin (n Σ))
-          -> height Σ v ≡ 0
-          -----------------
-          -> Tree Σ v
-          
-  tree : (Σ : NNF)
-         -> (v : Fin (n Σ))
-         -> All (Tree Σ) (next Σ v)
-         -> Independant (map (map toℕ) (map (dfs Σ) (next Σ v)))
-         ----------------------------------------------------------
-         -> Tree Σ v
-
-
-
-{--
-
-
-data Flatness (Σ : NNF) : Set where
-  flat : (height-root Σ) ≤ 2
-         ----------------------
-         -> Flatness Σ
-
-h≤2-flat : ∀ {Σ} -> (height-root Σ) ≤ 2 -> Flatness Σ
-h≤2-flat p = flat p
-
-flat-h≤2 : ∀ {Σ} -> Flatness Σ -> (height-root Σ) ≤ 2
-flat-h≤2 (flat p) = p
-
-flat-dec : ∀ {Σ} -> Dec ((height-root Σ) ≤ 2) -> Dec (Flatness Σ)
-flat-dec {Σ} h≤2 = map′ h≤2-flat (λ z → flat-h≤2 z) (height-root Σ ≤? 2)
-
-flat? : (Σ : NNF) -> Dec (Flatness Σ)
-flat? Σ = flat-dec ((height-root Σ) ≤? 2)
-
--}
-
-{--
-data Simple-disjunction (Σ : NNF) : Set where
-  simple-disj : ∀ (v : Fin (n Σ))
-                -> is-disjunction Σ v
-                -> height Σ v ≡ 1
-                -> Unique (map toℕ (next Σ v))
-                -----------------------
-                -> Simple-disjunction Σ
-
-record Simple-Disjunction (Σ : NNF) : Set where
-  field
-    prf : ∀ (v : Fin (n Σ))
-          -> is-disjunction Σ v
-          -> height Σ v ≡ 1 × Unique (map toℕ (next Σ v))
-open Simple-Disjunction
--}
-
-{--
-
-data Simple-conjunction (Σ : NNF) : Set where
-  simple-conj : ∀ (v : Fin (n Σ))
-                -> is-conjunction Σ v
-                -> height Σ v ≡ 1
-                -> Unique (map toℕ (next Σ v))
-                -----------------------
-                -> Simple-conjunction Σ
-
-record Simple-Conjunction (Σ : NNF) : Set where
-  field
-    prf : ∀ (v : Fin (n Σ))
-          -> is-conjunction Σ v
-          -> height Σ v ≡ 1 × Unique (map toℕ (next Σ v))
-open Simple-Conjunction
-
-
-
--}
+    smooth Σ v = AllPairs same-vars (dfs-next-toℕ Σ v)
 
 ```
-
 
 [1]A. Darwiche et P. Marquis, « A Knowledge Compilation Map », jair, vol. 17, p. 229‑264, sept. 2002, doi: 10.1613/jair.989.
